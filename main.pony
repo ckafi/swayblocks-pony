@@ -9,7 +9,7 @@ actor Main
 
     let actors: Array[(TimeableActor, U64)] = [
       (out, 1)
-      (AmixerVolume(env, out, "pulse", "Master"), 1)
+      (Volume(env, out, "pulse", "Master"), 1)
       (Memory(env, out, Mem), 1)
       (Memory(env, out, Swap), 1)
       (Bandwith(env, out, "enp0s25", In, 3), 3)

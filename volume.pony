@@ -4,7 +4,7 @@ use "regex"
 use "collections"
 
 
-actor AmixerVolume
+actor Volume
   let _env: Env
   let _out: OutputActor
   let _device: String val
@@ -26,7 +26,7 @@ actor AmixerVolume
       let auth = _env.root as AmbientAuth
       let monitor = ProcessMonitor(
         auth, auth,
-        AmixerClient(this),
+        VolumeClient(this),
         FilePath(auth, "/usr/bin/amixer")?,
         ["amixer"; "-M"; "-D"; _device; "get"; _channel],
         _env.vars)
@@ -42,10 +42,10 @@ actor AmixerVolume
     _out.receive(consume m)
 
 
-class AmixerClient is ProcessNotify
-  let _parent: AmixerVolume
+class VolumeClient is ProcessNotify
+  let _parent: Volume
 
-  new iso create(parent: AmixerVolume) =>
+  new iso create(parent: Volume) =>
     _parent = parent
 
   fun ref stdout(process: ProcessMonitor ref, data: Array[U8] iso) =>
