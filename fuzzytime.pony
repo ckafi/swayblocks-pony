@@ -33,7 +33,7 @@ actor Fuzzytime
     _out.receive(consume m)
 
 
-class FuzzytimeClient is ProcessClient
+class FuzzytimeClient is ProcessNotify
   let _parent: Fuzzytime
 
   new iso create(parent: Fuzzytime) =>

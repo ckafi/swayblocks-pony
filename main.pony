@@ -41,9 +41,3 @@ class ActorNotify is TimerNotify
   fun ref apply(timer: Timer ref, count: U64 val): Bool val =>
     _actor()
     true
-
-
-trait ProcessClient is ProcessNotify
-  fun ref stdout(process: ProcessMonitor ref, data: Array[U8] iso) => None
-  fun ref stderr(process: ProcessMonitor ref, data: Array[U8] iso) => None
-  fun ref failed(process: ProcessMonitor ref, err: ProcessError) => None

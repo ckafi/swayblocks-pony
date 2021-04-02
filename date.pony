@@ -34,7 +34,7 @@ actor Date
     _out.receive(consume m)
 
 
-class DateClient is ProcessClient
+class DateClient is ProcessNotify
   let _parent: Date
 
   new iso create(parent: Date) =>

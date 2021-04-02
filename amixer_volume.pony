@@ -42,7 +42,7 @@ actor AmixerVolume
     _out.receive(consume m)
 
 
-class AmixerClient is ProcessClient
+class AmixerClient is ProcessNotify
   let _parent: AmixerVolume
 
   new iso create(parent: AmixerVolume) =>
