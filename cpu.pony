@@ -4,15 +4,18 @@ use "regex"
 
 
 actor CPU
+  let name: String val = "CPU"
   let _env: Env
   let _out: OutputActor
+  let _config: Config
   var _last_total: U64 = 0
   var _last_idle: U64 = 0
   var _stat: (File | None) = None
 
-  new create(env: Env, out: OutputActor) =>
+  new create(env: Env, out: OutputActor, config: Config) =>
     _env = env
     _out = out
+    _config = config
     try
       _stat = File.open(FilePath(_env.root as AmbientAuth, "/proc/stat")?)
     end
@@ -41,6 +44,6 @@ actor CPU
 
   be receive(data: String val) =>
     let m = recover Map[String val, String val] end
-    m.insert("name", "cpu")
+    m.insert("name", name)
     m.insert("full_text", "CPU" + data + "%")
     _out.receive(consume m)

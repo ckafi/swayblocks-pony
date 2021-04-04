@@ -5,30 +5,26 @@ use "collections"
 
 
 actor Volume
+  let name: String val = "Volume"
   let _env: Env
   let _out: OutputActor
-  let _device: String val
-  let _channel: String val
+  let _config: Config
 
-  new create(
-    env: Env,
-    out: OutputActor,
-    device: String val,
-    channel: String val)
-  =>
+  new create(env: Env, out: OutputActor, config: Config) =>
     _env = env
     _out = out
-    _device = device
-    _channel = channel
+    _config = config
 
   be apply() =>
     try
+      let device = _config(name)?("device")?
+      let channel = _config(name)?("channel")?
       let auth = _env.root as AmbientAuth
       let monitor = ProcessMonitor(
         auth, auth,
         VolumeClient(this),
         FilePath(auth, "/usr/bin/amixer")?,
-        ["amixer"; "-M"; "-D"; _device; "get"; _channel],
+        ["amixer"; "-M"; "-D"; device; "get"; channel],
         _env.vars)
       monitor.done_writing()
     else
@@ -37,7 +33,7 @@ actor Volume
 
   be receive(data: String val) =>
     let m = recover Map[String val, String val] end
-    m.insert("name", "volume")
+    m.insert("name", name)
     m.insert("full_text", "VOL" + data)
     _out.receive(consume m)
 
