@@ -1,16 +1,19 @@
 use "files"
 use "process"
 use "collections"
-use "debug"
 
 
 actor Fuzzytime
   let _env: Env
   let _out: OutputActor
+  let _init: State val
+  var _state: State iso
 
-  new create(env: Env, out: OutputActor) =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
+    _init = init
+    _state = recover _init.clone() end
 
   be apply() =>
     try
@@ -23,14 +26,16 @@ actor Fuzzytime
         _env.vars)
       monitor.done_writing()
     else
-      receive("??")
+      _state("full_text") = "Time fail"
+      _send()
     end
 
   be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", "fuzzytime")
-    m.insert("full_text", data)
-    _out.receive(consume m)
+    _state("full_text") = data
+    _send()
+
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)
 
 
 class FuzzytimeClient is ProcessNotify

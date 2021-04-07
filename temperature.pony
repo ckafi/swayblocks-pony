@@ -6,11 +6,15 @@ use "format"
 actor Temperature
   let _env: Env
   let _out: OutputActor
+  let _init: State val
+  var _state: State iso
   var _inputs: (Array[File] | None) = None
 
-  new create(env: Env, out: OutputActor) =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
+    _init = init
+    _state = recover _init.clone() end
     _inputs = Array[File](5)
     try
       var path = FilePath(_env.root as AmbientAuth, "/sys/devices/platform/coretemp.0/hwmon/")?
@@ -29,13 +33,11 @@ actor Temperature
         total = total + f.read_string(1024).>rstrip().u64()?
       end
       let v = total.f64()/inputs.size().f64()/1000
-      receive(Format.float[F64](v where fmt = FormatFix, prec = 1))
+      _state("full_text") = Format.float[F64](v where fmt = FormatFix, prec = 1)
     else
-      receive("??")
+      _state("full_text") = "Temp fail"
     end
+    _send()
 
-  be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", "temperature")
-    m.insert("full_text", data + "°C")
-    _out.receive(consume m)
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)

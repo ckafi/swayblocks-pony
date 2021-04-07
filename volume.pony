@@ -5,20 +5,21 @@ use "collections"
 
 
 actor Volume
-  let name: String val = "Volume"
   let _env: Env
   let _out: OutputActor
-  let _config: Config
+  let _init: State val
+  var _state: State iso
 
-  new create(env: Env, out: OutputActor, config: Config) =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
-    _config = config
+    _init = init
+    _state = recover _init.clone() end
 
   be apply() =>
     try
-      let device = _config(name)?("device")?
-      let channel = _config(name)?("channel")?
+      let device = _state("device")? as String
+      let channel = _state("channel")? as String
       let auth = _env.root as AmbientAuth
       let monitor = ProcessMonitor(
         auth, auth,
@@ -28,14 +29,16 @@ actor Volume
         _env.vars)
       monitor.done_writing()
     else
-      receive("??")
+      _state("full_text") = "VOL FAIL"
+      _send()
     end
 
   be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", name)
-    m.insert("full_text", "VOL" + data)
-    _out.receive(consume m)
+    _state("full_text") = "Vol" + data
+    _send()
+
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)
 
 
 class VolumeClient is ProcessNotify

@@ -4,18 +4,19 @@ use "regex"
 
 
 actor CPU
-  let name: String val = "CPU"
   let _env: Env
   let _out: OutputActor
-  let _config: Config
+  let _init: State val
+  var _state: State iso
   var _last_total: U64 = 0
   var _last_idle: U64 = 0
   var _stat: (File | None) = None
 
-  new create(env: Env, out: OutputActor, config: Config) =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
-    _config = config
+    _init = init
+    _state = recover _init.clone() end
     try
       _stat = File.open(FilePath(_env.root as AmbientAuth, "/proc/stat")?)
     end
@@ -35,15 +36,13 @@ actor CPU
         count = count + 1
       end
       let perc = 1 - ((idle-_last_idle).f64()/(total-_last_total).f64())
-      receive((perc * 100).round().string())
+      _state("full_text") = "CPU " + ((perc * 100).round().string()) + "%"
       _last_idle = idle
       _last_total = total
     else
-      receive("??")
+      _state("full_text") = "CPU FAIL"
     end
+    _send()
 
-  be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", name)
-    m.insert("full_text", "CPU" + data + "%")
-    _out.receive(consume m)
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)

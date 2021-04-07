@@ -6,12 +6,14 @@ use "collections"
 actor Date
   let _env: Env
   let _out: OutputActor
-  let _format: String val
+  let _init: State val
+  var _state: State iso
 
-  new create(env: Env, out: OutputActor, format: String val) =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
-    _format = format
+    _init = init
+    _state = recover _init.clone() end
 
   be apply() =>
     try
@@ -20,18 +22,20 @@ actor Date
         auth, auth,
         DateClient(this),
         FilePath(auth, "/usr/bin/date")?,
-        ["date"; "+" + _format],
+        ["date"; "+" + (_state("format")? as String)],
         _env.vars)
       monitor.done_writing()
     else
-      receive("??")
+      _state("full_text") = "Date fail"
+      _send()
     end
 
   be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", "date")
-    m.insert("full_text", data)
-    _out.receive(consume m)
+    _state("full_text") = data
+    _send()
+
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)
 
 
 class DateClient is ProcessNotify

@@ -1,7 +1,8 @@
 use "time"
 use "process"
 use "files"
-use "ini"
+use "collections"
+use "json"
 
 actor Main
   let second: U64 = 1_000_000_000
@@ -10,65 +11,55 @@ actor Main
   new create(env: Env) =>
     _env = env
     let config = try
-      _get_config()?
+      recover val Config(_default_conifg_path()?)? end
     else
       _env.err.print("Failed to open config")
       return
     end
-
     let out = Output(env)
     let timers = Timers
-    for module_name in config.keys() do
-    try
-      _add_module(module_name, out, config, timers)?
-    else
-      _env.err.print("Error spawning module " + module_name)
-    end
-    end
-    timers(Timer(ActorNotify(out), 0, 1*second))
-
-  fun _get_config(): Config ? =>
-    recover
-      var config_path_s = ""
-      for v in _env.vars.values() do
-        if v.contains("XDG_CONFIG_HOME=") then
-          config_path_s = v.split_by("=")(1)?
-          break
-        end
+    for (k,v) in config.pairs() do
+      try
+        let s = (v("interval")? as I64).u64()
+        let m = _get_module(k, out, v)?
+        timers(Timer(ActorNotify(m), 0, s*second))
+      else
+      _env.err.print("Error spawning module " + k)
       end
-      let config_file = File.open(
-        FilePath(_env.root as AmbientAuth, config_path_s)?
-        .join("swayblocks-pony")?)
-      if not config_file.path.exists() then error end
-      IniParse(config_file.lines())?
     end
+    timers(Timer(ActorNotify(out), 0, second))
 
-  fun _add_module(
-    module_name: String,
+  fun _default_conifg_path(): FilePath ? =>
+    var config_path_s = ""
+    for v in _env.vars.values() do
+      if v.contains("XDG_CONFIG_HOME=") then
+        config_path_s = v.split_by("=")(1)?
+        break
+      end
+    end
+    FilePath(
+      _env.root as AmbientAuth,
+          config_path_s)?
+    .join("swayblocks-pony")?
+
+  fun _get_module(
+    name: String,
     out: OutputActor,
-    config: Config,
-    timers: Timers)
-  : None ?
+    init: State val)
+  : TimeableActor ?
   =>
-    let interval = config(module_name)?("interval")?.u64()?
-    // Ugly af, but I don't have a better idea
-    // Partial function application crashed ponyc
-    let a = match module_name
-    | "CPU" => CPU(_env, out, config)
-    | "Volume" => Volume(_env, out, config)
+    match name.split_by(":")(0)?
+    | "Volume" => Volume(_env, out, init)
+    | "CPU" => CPU(_env, out, init)
+    | "Load" => Load(_env, out, init)
+    | "Temperature" => Temperature(_env, out, init)
+    | "Date" => Date(_env, out, init)
+    | "Fuzzytime" => Fuzzytime(_env, out, init)
+    | "Memory" => Memory(_env, out, init)
+    | "Bandwith" => Bandwith(_env, out, init)
     else
       error
     end
-    let timer = Timer(ActorNotify(a), 0, interval * second)
-    timers(consume timer)
-    /*   (Memory(env, out, Mem), 1) */
-    /*   (Memory(env, out, Swap), 1) */
-    /*   (Bandwith(env, out, "enp0s25", In, 3), 3) */
-    /*   (Bandwith(env, out, "enp0s25", Out, 3), 3) */
-    /*   (Temperature(env, out), 1) */
-    /*   (Load(env, out), 1) */
-    /*   (Date(env, out, "%a %d. %b"), 1) */
-    /*   (Fuzzytime(env, out), 1) */
 
 
 interface tag TimeableActor
@@ -86,4 +77,4 @@ class ActorNotify is TimerNotify
     true
 
 
-type Config is IniMap val
+type State is Map[String val, (I64 | Bool | String val)]

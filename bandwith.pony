@@ -5,6 +5,8 @@ use "collections"
 actor Bandwith
   let _env: Env
   let _out: OutputActor
+  let _init: State val
+  var _state: State iso
   let _interface: String val
   let _direction: Direction
   let _factor: U64
@@ -12,18 +14,19 @@ actor Bandwith
   var _state_file: (File | None) = None
   var _bytes_file: (File | None) = None
 
-  new create(
-    env: Env,
-    out: OutputActor,
-    interface': String val,
-    direction: Direction,
-    factor: U64)
-  =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
-    _interface = interface'
-    _direction = direction
-    _factor = factor
+    _init = init
+    _state = recover _init.clone() end
+    _interface = try _init("interface")? as String else "lo" end
+    _direction = match _init.get_or_else("direction", "in")
+    | "in" => In
+    | "out" => Out
+    else In
+    end
+    let factor = try _init("interval")? as I64 else 0 end
+    _factor = factor.u64()
     try
       let path = FilePath(_env.root as AmbientAuth, "/sys/class/net/")?.join(_interface)?
       _state_file = File.open(path.join("operstate")?)
@@ -43,25 +46,22 @@ actor Bandwith
         diff = diff / 1024
         suffix = "M"
       end
-      receive(diff.string() + suffix)
       _last_bytes = bytes
+      _state("full_text") = diff.string() + suffix
     else
-      receive("down")
+      _state("full_text") = _interface + " down"
+      _state("color") = "#FF0000"
     end
+    _send()
 
-  be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", _direction.name())
-    m.insert("full_text", _direction.symbol() + data)
-    _out.receive(consume m)
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)
 
 
 type Direction is (In | Out)
 primitive In
-  fun name(): String val => "bandwith_in"
-  fun symbol(): String val => "IN "
+  fun string(): String val => "In "
   fun prefix(): String val => "rx"
 primitive Out
-  fun name(): String val => "bandwith_out"
-  fun symbol(): String val => "OUT "
+  fun string(): String val => "Out "
   fun prefix(): String val => "tx"

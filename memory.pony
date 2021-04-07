@@ -6,13 +6,21 @@ use "collections"
 actor Memory
   let _env: Env
   let _out: OutputActor
+  let _init: State val
+  var _state: State iso
   let _memtype: MemType
   var _file: (File | None) = None
 
-  new create(env: Env, out: OutputActor, memtype: MemType) =>
+  new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
-    _memtype = memtype
     _out = out
+    _init = init
+    _state = recover _init.clone() end
+    _memtype = match _init.get_or_else("type", "mem")
+    | "mem" => Mem
+    | "swap" => Swap
+    else Mem
+    end
     try
       _file = File.open(FilePath(_env.root as AmbientAuth, "/proc/meminfo")?)
     end
@@ -31,22 +39,20 @@ actor Memory
         for m in Regex("SwapTotal:\\s*(\\d+)")?.matches(s) do total = m.groups()(0)?.u64()? end
         for m in Regex("(SwapFree):\\s*(\\d+)")?.matches(s) do free = free + m.groups()(1)?.u64()? end
       end
-      receive(((1-(free.f64()/total.f64()))*100).round().string())
+      _state("full_text") = _memtype.symbol() + ((1-(free.f64()/total.f64()))*100).round().string() + "%"
     else
-      receive("??")
+      _state("full_text") = _memtype.string() + " fail"
     end
+    _send()
 
-  be receive(data: String val) =>
-    let m = recover Map[String val, String val] end
-    m.insert("name", _memtype.name())
-    m.insert("full_text", _memtype.symbol() + data + "%")
-    _out.receive(consume m)
+  fun ref _send() =>
+    _out.receive(_state = recover _init.clone() end)
 
 
 type MemType is (Mem | Swap)
 primitive Mem
-  fun name(): String val => "memory"
+  fun string(): String val => "Memory"
   fun symbol(): String val => "M"
 primitive Swap
-  fun name(): String val => "swap"
+  fun string(): String val => "Swap"
   fun symbol(): String val => "S"
