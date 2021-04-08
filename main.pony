@@ -1,8 +1,7 @@
 use "time"
 use "process"
 use "files"
-use "collections"
-use "json"
+use "collections/persistent"
 
 actor Main
   let second: U64 = 1_000_000_000
@@ -11,7 +10,7 @@ actor Main
   new create(env: Env) =>
     _env = env
     let config = try
-      recover val Config(_default_conifg_path()?)? end
+      recover val Config(_default_config_path()?)? end
     else
       _env.err.print("Failed to open config")
       return
@@ -29,7 +28,7 @@ actor Main
     end
     timers(Timer(ActorNotify(out), 0, second))
 
-  fun _default_conifg_path(): FilePath ? =>
+  fun _default_config_path(): FilePath ? =>
     var config_path_s = ""
     for v in _env.vars.values() do
       if v.contains("XDG_CONFIG_HOME=") then

@@ -1,15 +1,16 @@
 use "files"
 use "ini"
-use "collections"
+use "collections/persistent"
+use np = "collections"
 
 primitive Config
   fun apply(path: FilePath): Map[String val, State] ? =>
     if not path.exists() then error end
-    let config = Map[String val, State]
+    let config = np.Map[String val, State]
     let lines = File.open(path).lines()
 
     let f = object
-      let config: Map[String val, State] = config
+      let config: np.Map[String val, State] = config
       var counter: I64 = 0
 
       fun ref apply(section: String, key: String, value: String): Bool =>
@@ -17,16 +18,17 @@ primitive Config
           if not config.contains(section) then
             add_section(section)
           end
-          config(section)?(key) = _parse_value(value)
+          let s = config(section)?
+          config(section) = s.update(key, _parse_value(value))
         end
         true
 
       fun ref add_section(section: String): Bool =>
         if not config.contains(section) then
-          let c = State
+          var c = State
           if section != "" then
-            c.insert("name", section.clone())
-            c.insert("position", counter)
+            c = c.update("name", section.clone())
+                 .update("position", counter)
             counter = counter + 1
           end
           config.insert(section, c)
@@ -59,4 +61,4 @@ primitive Config
         v.concat(default.pairs())
       end
     end
-    config
+    Map[String val, State].concat(config.pairs())

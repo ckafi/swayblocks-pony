@@ -1,20 +1,18 @@
 use "files"
 use "process"
 use "regex"
-use "collections"
+use "collections/persistent"
 
 
 actor Volume
   let _env: Env
   let _out: OutputActor
-  let _init: State val
-  var _state: State iso
+  var _state: State
 
   new create(env: Env, out: OutputActor, init: State val) =>
     _env = env
     _out = out
-    _init = init
-    _state = recover _init.clone() end
+    _state = init
 
   be apply() =>
     try
@@ -29,16 +27,16 @@ actor Volume
         _env.vars)
       monitor.done_writing()
     else
-      _state("full_text") = "VOL FAIL"
-      _send()
+      _state = _state.update("full_text", "VOL fail")
+      _out.receive(_state)
     end
 
   be receive(data: String val) =>
-    _state("full_text") = "Vol" + data
-    _send()
-
-  fun ref _send() =>
-    _out.receive(_state = recover _init.clone() end)
+    let text = recover String(8) end
+    text.append("Vol")
+    text.append(data)
+    _state = _state.update("full_text", consume text)
+    _out.receive(_state)
 
 
 class VolumeClient is ProcessNotify
@@ -58,5 +56,5 @@ class VolumeClient is ProcessNotify
         _parent.receive("MUTE")
       end
     else
-      _parent.receive("-1")
+      _parent.receive(" fail")
     end

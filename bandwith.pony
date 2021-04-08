@@ -1,12 +1,12 @@
 use "files"
-use "collections"
+use "collections/persistent"
 
 
 actor Bandwith
   let _env: Env
   let _out: OutputActor
-  let _init: State val
-  var _state: State iso
+  var _state: State
+
   let _interface: String val
   let _direction: Direction
   let _factor: U64
@@ -14,18 +14,17 @@ actor Bandwith
   var _state_file: (File | None) = None
   var _bytes_file: (File | None) = None
 
-  new create(env: Env, out: OutputActor, init: State val) =>
+  new create(env: Env, out: OutputActor, init: State) =>
     _env = env
     _out = out
-    _init = init
-    _state = recover _init.clone() end
-    _interface = try _init("interface")? as String else "lo" end
-    _direction = match _init.get_or_else("direction", "in")
+    _state = init
+    _interface = try _state("interface")? as String else "lo" end
+    _direction = match _state.get_or_else("direction", "in")
     | "in" => In
     | "out" => Out
     else In
     end
-    let factor = try _init("interval")? as I64 else 0 end
+    let factor = try _state("interval")? as I64 else 0 end
     _factor = factor.u64()
     try
       let path = FilePath(_env.root as AmbientAuth, "/sys/class/net/")?.join(_interface)?
@@ -36,26 +35,28 @@ actor Bandwith
   be apply() =>
     try
       let state_file: File = (_state_file as File).>seek_start(0)
-      let state: String val = state_file.read_string(2)
-      if state != "up" then error end
+      if state_file.read_string(2)!= "up" then error end
       let bytes_file = (_bytes_file as File).>seek_start(0)
       let bytes = bytes_file.read_string(1024).>rstrip().u64()?
       var diff = (bytes - _last_bytes) / _factor / 1024
-      var suffix = "K"
-      if diff >= 1024 then
+      let suffix = if diff >= 1024 then
         diff = diff / 1024
-        suffix = "M"
+        "M"
+      else
+        "K"
       end
       _last_bytes = bytes
-      _state("full_text") = diff.string() + suffix
+      let text = recover String(8) end
+      text.append(_direction.string())
+      text.append(diff.string())
+      text.append(suffix)
+      _state = _state.update("full_text", consume text)
+                     .remove("color")?
     else
-      _state("full_text") = _interface + " down"
-      _state("color") = "#FF0000"
+      _state = _state.update("full_text", _interface + " down")
+                     .update("color", "#FF0000")
     end
-    _send()
-
-  fun ref _send() =>
-    _out.receive(_state = recover _init.clone() end)
+    _out.receive(_state)
 
 
 type Direction is (In | Out)

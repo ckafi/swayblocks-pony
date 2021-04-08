@@ -1,15 +1,15 @@
 use "json"
-use "collections"
+use "collections/persistent"
 
 
 actor Output
   let _env: Env
-  var _state: Array[State val] = Array[State val]
+  var _state: Array[State] = Array[State]
   let _dummy: State val
 
   new create(env: Env) =>
     _env = env
-    _dummy = recover val State.>insert("full_text", "") end
+    _dummy = State.update("full_text", "")
     _env.out.print("{\"version\":1,\"click_events\":true}")
     _env.out.print("[[]")
 

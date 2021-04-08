@@ -1,19 +1,17 @@
 use "files"
 use "process"
-use "collections"
+use "collections/persistent"
 
 
 actor Date
   let _env: Env
   let _out: OutputActor
-  let _init: State val
-  var _state: State iso
+  var _state: State
 
-  new create(env: Env, out: OutputActor, init: State val) =>
+  new create(env: Env, out: OutputActor, init: State) =>
     _env = env
     _out = out
-    _init = init
-    _state = recover _init.clone() end
+    _state = init
 
   be apply() =>
     try
@@ -26,16 +24,13 @@ actor Date
         _env.vars)
       monitor.done_writing()
     else
-      _state("full_text") = "Date fail"
-      _send()
+      _state = _state.update("full_text", "Date fail")
+      _out.receive(_state)
     end
 
   be receive(data: String val) =>
-    _state("full_text") = data
-    _send()
-
-  fun ref _send() =>
-    _out.receive(_state = recover _init.clone() end)
+    _state = _state.update("full_text", data)
+    _out.receive(_state)
 
 
 class DateClient is ProcessNotify

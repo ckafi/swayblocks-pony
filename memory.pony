@@ -1,22 +1,20 @@
 use "files"
 use "regex"
-use "collections"
+use "collections/persistent"
 
 
 actor Memory
   let _env: Env
   let _out: OutputActor
-  let _init: State val
-  var _state: State iso
+  var _state: State
   let _memtype: MemType
   var _file: (File | None) = None
 
-  new create(env: Env, out: OutputActor, init: State val) =>
+  new create(env: Env, out: OutputActor, init: State) =>
     _env = env
     _out = out
-    _init = init
-    _state = recover _init.clone() end
-    _memtype = match _init.get_or_else("type", "mem")
+    _state = init
+    _memtype = match _state.get_or_else("type", "mem")
     | "mem" => Mem
     | "swap" => Swap
     else Mem
@@ -39,14 +37,15 @@ actor Memory
         for m in Regex("SwapTotal:\\s*(\\d+)")?.matches(s) do total = m.groups()(0)?.u64()? end
         for m in Regex("(SwapFree):\\s*(\\d+)")?.matches(s) do free = free + m.groups()(1)?.u64()? end
       end
-      _state("full_text") = _memtype.symbol() + ((1-(free.f64()/total.f64()))*100).round().string() + "%"
+      let text = recover String(8) end
+      text.append(_memtype.symbol())
+      text.append(((1-(free.f64()/total.f64()))*100).round().string())
+      text.append("%")
+      _state = _state.update("full_text", consume text)
     else
-      _state("full_text") = _memtype.string() + " fail"
+      _state = _state.update("full_text", _memtype.string() + " fail")
     end
-    _send()
-
-  fun ref _send() =>
-    _out.receive(_state = recover _init.clone() end)
+    _out.receive(_state)
 
 
 type MemType is (Mem | Swap)
